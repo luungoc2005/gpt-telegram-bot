@@ -210,6 +210,7 @@ def get_model():
 
 def build_chat_history(history_items, human_prefix, bot_prefix):
     chat_history = []
+    logger.debug([item['message'] for item in history_items])
     for item in history_items:
         message = item['message'].strip()
         if message == "/reset":
@@ -264,7 +265,8 @@ def predict(model, tokenizer, device, first_name, history_items, message, genera
     rank_context = message
 
     prompt = initial_prompt \
-        .replace("{{chat_history}}", chat_history)
+        .replace("{{chat_history}}", chat_history) \
+        .strip() # this prevents a new line if the chat history is empty
     prompt += "\n" + human_prefix + message
     prompt += "\n" + bot_prefix
 
