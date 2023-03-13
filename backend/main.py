@@ -6,6 +6,7 @@ import requests
 import urllib
 from decimal import Decimal
 from model import get_model, predict
+from llama import llama_generate
 
 logging.basicConfig(filename="main.log", level=logging.DEBUG)
 MAX_HISTORY_TURNS = 6
@@ -79,6 +80,23 @@ def send_message(api_token, text, chat_id):
     r = requests.get(url)
     logging.info(r.text)
 
+
+def send_commands(api_token):
+    URL = "https://api.telegram.org/bot{}/".format(api_token)
+    url = URL + "setMyCommands?commands={}&scope=default".format(json.dumps([
+        {
+            "command": "/reset",
+            "description": "Reset the context"
+        },
+        {
+            "command": "/retry",
+            "description": "Regenerate for the last message"
+        }
+    ]))
+    r = requests.get(url)
+    logging.info(r.text)
+
+
 if __name__ == '__main__':
     # Load credentials from JSON file.
     print("Initializing...")
@@ -99,10 +117,19 @@ if __name__ == '__main__':
 
     table = dynamodb.Table('telegram-chat-history')
 
-    model, tokenizer, device = get_model()
-    def _predict(first_name, history_items, message):
-        return predict(model, tokenizer, device, first_name, history_items, message)
-    
+    USE_LLAMA = True
+
+    if USE_LLAMA:
+        def _predict(first_name, history_items, message):
+            return predict(None, None, None, first_name, history_items, message, llama_generate)
+    else:
+        model, tokenizer, device = get_model()
+        def _predict(first_name, history_items, message):
+            return predict(model, tokenizer, device, first_name, history_items, message)
+        
+    print("Setting up the bot")
+
+    send_commands(telegram_token)
 
     print("Started polling for messages...")
 

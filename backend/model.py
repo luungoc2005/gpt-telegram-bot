@@ -27,8 +27,13 @@ INITIAL_PROMPT = """{{bot_name}} is an assistant chatbot
 # INITIAL_PROMPT = """{{bot_name}} is a large language model. It can talk about anything.
 
 # {{first_name}}: Hello
-# {{bot_name}}: Good morning
 # {{chat_history}}"""
+INITIAL_PROMPT = """A conversation where {{first_name}} interacts with {{bot_name}} 
+{{bot_name}} is an AI that's helpful, obedient and honest. It tries to provide diverse responses to keep the conversation engaging.
+
+{{first_name}}: Good {{part_of_day}}
+{{bot_name}}: Hello! How can I help you today?
+{{chat_history}}"""
 RANKER_MODELS = [
     # ('microsoft/DialogRPT-human-vs-rand', .5, 0),
     # ('microsoft/DialogRPT-human-vs-machine', .5, 0),
@@ -216,9 +221,36 @@ def build_chat_history(history_items, human_prefix, bot_prefix):
 
 
 @torch.no_grad()
-def predict(model, tokenizer, device, first_name, history_items, message):
+def _model_generate(prompt, model, tokenizer, device):
     num_return_sequences=3
     num_beams = num_return_sequences * 2
+
+    inputs = tokenizer(prompt, return_tensors="pt")
+    inputs = inputs.to(device)
+
+    output = model.generate(
+        **inputs,
+        pad_token_id=tokenizer.eos_token_id,
+        max_new_tokens=64,
+        top_k=50,
+        top_p=0.8,
+        temperature=0.75,
+        repetition_penalty=2.0,
+        # diversity_penalty=2.0,
+        no_repeat_ngram_size=2,
+        length_penalty=1.0,
+        num_beams=num_beams,
+        # num_beam_groups=num_return_sequences,
+        do_sample=True,
+        early_stopping=True,
+        num_return_sequences=num_return_sequences
+    )
+    text_outputs = tokenizer.batch_decode(output, skip_special_tokens=True)
+
+    return text_outputs
+
+
+def predict(model, tokenizer, device, first_name, history_items, message, generate_func=_model_generate):
     # Prepare input
     chat_history = build_chat_history(history_items, human_prefix, bot_prefix)
     initial_prompt, bot_prefix, human_prefix = get_initial_prompt(first_name, chat_history)
@@ -232,29 +264,8 @@ def predict(model, tokenizer, device, first_name, history_items, message):
     logging.debug("Full prompt:")
     logging.debug(prompt)
 
-    inputs = tokenizer(prompt, return_tensors="pt")
-    inputs = inputs.to(device)
-
-    output = model.generate(
-        **inputs,
-        pad_token_id=tokenizer.eos_token_id,
-        max_new_tokens=64,
-        top_k=50,
-        top_p=0.8,
-        temperature=0.8,
-        repetition_penalty=2.0,
-        # diversity_penalty=2.0,
-        no_repeat_ngram_size=2,
-        length_penalty=2.0,
-        num_beams=num_beams,
-        # num_beam_groups=num_return_sequences,
-        do_sample=True,
-        early_stopping=True,
-        num_return_sequences=num_return_sequences
-    )
-
+    text_outputs = generate_func(prompt, model, tokenizer, device)
     candidates = []
-    text_outputs = tokenizer.batch_decode(output, skip_special_tokens=True)
     for _, text_output in enumerate(text_outputs):
         processed_output = process_output(prompt, text_output, [human_prefix, '\n'])
         candidates.append(processed_output)

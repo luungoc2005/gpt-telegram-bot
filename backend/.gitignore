@@ -3,3 +3,4 @@ set_webhook*
 *.log
 EleutherAI-gpt-neo-2.7B.json
 __pycache__
+.env
