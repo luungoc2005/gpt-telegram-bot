@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import json
 import boto3
 import time
@@ -8,12 +12,18 @@ from decimal import Decimal
 from model import get_model, predict
 from llama import llama_generate
 
-logging.basicConfig(filename="main.log", level=logging.DEBUG)
+logging.basicConfig(filename="stderr.log", level=logging.DEBUG)
+
+logger = logging.getLogger(__name__)
+handler = logging.FileHandler('main.log')
+handler.setLevel(logging.DEBUG)
+logger.addHandler(handler)
+
 MAX_HISTORY_TURNS = 6
 
 def handle_message(telegram_token, table, predict_func, message):
-    logging.info("Handling message")
-    logging.info(message)
+    logger.info("Handling message")
+    logger.info(message)
 
     decoded_message=json.loads(message['Body'])
     body_json = decoded_message['body-json']
@@ -69,16 +79,16 @@ def send_typing(api_token, chat_id):
     URL = "https://api.telegram.org/bot{}/".format(api_token)
     url = URL + "sendChatAction?action=typing&chat_id={}".format(chat_id)
     r = requests.get(url)
-    logging.info(r.text)
+    logger.info(r.text)
 
 
 def send_message(api_token, text, chat_id):
-    logging.info(text)
+    logger.info(text)
     URL = "https://api.telegram.org/bot{}/".format(api_token)
     text = urllib.parse.quote(text)
     url = URL + "sendMessage?text={}&chat_id={}".format(text, chat_id)
     r = requests.get(url)
-    logging.info(r.text)
+    logger.info(r.text)
 
 
 def send_commands(api_token):
@@ -94,7 +104,7 @@ def send_commands(api_token):
         }
     ]))
     r = requests.get(url)
-    logging.info(r.text)
+    logger.info(r.text)
 
 
 if __name__ == '__main__':
@@ -153,7 +163,7 @@ if __name__ == '__main__':
                 handle_message(telegram_token, table, _predict, message)
                 print("({:.4f}s)".format(time.time() - start_time))
             except Exception as e:
-                logging.error(e)
-                logging.error(message)
+                logger.error(e)
+                logger.error(message)
 
         time.sleep(1)

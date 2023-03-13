@@ -13,6 +13,11 @@ import torch
 import logging
 import datetime
 
+logger = logging.getLogger(__name__)
+handler = logging.FileHandler('model.log')
+handler.setLevel(logging.DEBUG)
+logger.addHandler(handler)
+
 # Settings
 LOAD_SHARDED = False
 ENABLE_RANKER = True
@@ -58,13 +63,12 @@ def get_part_of_day():
         return "evening"
 
 
-def get_initial_prompt(first_name, chat_history):
+def get_initial_prompt(first_name):
     BOT_NAME = "Sydney"
     prompt = INITIAL_PROMPT \
         .replace("{{first_name}}", first_name) \
         .replace("{{bot_name}}", BOT_NAME) \
-        .replace("{{part_of_day}}", get_part_of_day()) \
-        .replace("{{chat_history}}", chat_history)
+        .replace("{{part_of_day}}", get_part_of_day())
     bot_prefix = f"{BOT_NAME}: "
     human_prefix = f"{first_name}: "
 
@@ -207,16 +211,18 @@ def get_model():
 def build_chat_history(history_items, human_prefix, bot_prefix):
     chat_history = []
     for item in history_items:
-        if item['message'] == "/reset":
+        message = item['message'].strip()
+        if message == "/reset":
             chat_history = []
             continue
-        elif item['message'].startswith("/"):
+        elif message.startswith("/"):
             continue
 
         if int(item['from']) == 0:
-            chat_history.append(human_prefix + item['message'])
+            chat_history.append(human_prefix + message)
         else:
-            chat_history.append(bot_prefix + item['message'])
+            chat_history.append(bot_prefix + message)
+    logger.debug(chat_history)
     return '\n'.join(chat_history)
 
 
@@ -252,17 +258,18 @@ def _model_generate(prompt, model, tokenizer, device):
 
 def predict(model, tokenizer, device, first_name, history_items, message, generate_func=_model_generate):
     # Prepare input
+    initial_prompt, bot_prefix, human_prefix = get_initial_prompt(first_name)
     chat_history = build_chat_history(history_items, human_prefix, bot_prefix)
-    initial_prompt, bot_prefix, human_prefix = get_initial_prompt(first_name, chat_history)
     prompt = initial_prompt
     rank_context = message
 
-    prompt = initial_prompt
+    prompt = initial_prompt \
+        .replace("{{chat_history}}", chat_history)
     prompt += "\n" + human_prefix + message
     prompt += "\n" + bot_prefix
 
-    logging.debug("Full prompt:")
-    logging.debug(prompt)
+    logger.debug("Full prompt:")
+    logger.debug(prompt)
 
     text_outputs = generate_func(prompt, model, tokenizer, device)
     candidates = []
@@ -275,7 +282,7 @@ def predict(model, tokenizer, device, first_name, history_items, message, genera
     chosen_output = candidates[chosen_index]
 
     output_lines = [f"{scores[ix]} - {candidate}" for ix, candidate in enumerate(candidates)]
-    logging.debug("Candidates:")
-    logging.debug("\n".join(output_lines))
+    logger.debug("Candidates:")
+    logger.debug("\n".join(output_lines))
 
     return chosen_output
