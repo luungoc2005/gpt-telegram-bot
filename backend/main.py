@@ -93,7 +93,7 @@ def send_message(api_token, text, chat_id):
 
 def send_commands(api_token):
     URL = "https://api.telegram.org/bot{}/".format(api_token)
-    url = URL + "setMyCommands?commands={}&scope=default".format(json.dumps([
+    url = URL + "setMyCommands?commands={}".format(urllib.parse.quote(json.dumps([
         {
             "command": "/reset",
             "description": "Reset the context"
@@ -102,7 +102,7 @@ def send_commands(api_token):
             "command": "/retry",
             "description": "Regenerate for the last message"
         }
-    ]))
+    ])))
     r = requests.get(url)
     logger.info(r.text)
 
